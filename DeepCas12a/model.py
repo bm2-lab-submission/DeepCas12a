@@ -32,30 +32,35 @@ class PatchEmbedding(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, embed_dim, num_heads=12, qkv_bias=False, dropout=0.35, attention_dropout=0.):
+    def __init__(self, embed_dim, num_heads=12, qkv_bias=False, dropout=0.35, attention_dropout=0., head_dim=None):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        self.qkv = nn.Linear(embed_dim, embed_dim * 3, bias=qkv_bias)
+        self.head_dim = head_dim if head_dim is not None else int(embed_dim / num_heads)
+        self.all_head_dim = self.head_dim * num_heads
+        self.qkv = nn.Linear(embed_dim, self.all_head_dim * 3, bias=qkv_bias)
         self.scale = self.head_dim ** -0.5
-        self.softmax = nn.Softmax(dim=-1)
-        self.proj = nn.Linear(embed_dim, embed_dim)
+        self.softmax = nn.Softmax(-1)
+        self.proj = nn.Linear(self.all_head_dim, embed_dim)
 
     def transpose_multi_head(self, x):
-        B, N, C = x.shape
-        x = x.view(B, N, self.num_heads, self.head_dim)
-        return x.permute(0, 2, 1, 3)
+        new_shape = x.shape[:-1] + (self.num_heads, self.head_dim)
+        x = x.reshape(new_shape)
+        x = x.permute(0, 2, 1, 3)
+        return x
 
     def forward(self, x):
-        B, N, C = x.shape
-        qkv = self.qkv(x).chunk(3, dim=-1)
+        B, N, _ = x.shape
+        qkv = self.qkv(x).chunk(3, -1)
         q, k, v = map(self.transpose_multi_head, qkv)
-        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = torch.matmul(q, k.transpose(-1, -2))
+        attn = self.scale * attn
         attn = self.softmax(attn)
-        out = attn @ v
-        out = out.permute(0, 2, 1, 3).contiguous().view(B, N, C)
-        return self.proj(out)
+        out = torch.matmul(attn, v)
+        out = out.permute(0, 2, 1, 3)
+        out = out.reshape([B, N, -1])
+        out = self.proj(out)
+        return out
 
 
 class Mlp(nn.Module):
@@ -73,24 +78,30 @@ class Mlp(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, embed_dim, num_heads, mlp_ratio=4.0, dropout=0.35, attention_drop=0.):
+    def __init__(self, embed_dim, num_heads, mlp_ratio=4.0, dropout=0.35, attention_drop=0., qkv_bias=False, head_dim=None):
         super().__init__()
-        self.norm1 = nn.LayerNorm(embed_dim)
-        self.attn = Attention(embed_dim, num_heads, dropout=dropout, attention_dropout=attention_drop)
-        self.norm2 = nn.LayerNorm(embed_dim)
+        self.attn_norm = nn.LayerNorm(embed_dim)
+        self.attn = Attention(embed_dim, num_heads, qkv_bias, dropout, attention_drop, head_dim)
+        self.mlp_norm = nn.LayerNorm(embed_dim)
         self.mlp = Mlp(embed_dim, mlp_ratio, dropout)
 
     def forward(self, x):
-        x = x + self.attn(self.norm1(x))
-        x = x + self.mlp(self.norm2(x))
+        h = x
+        x = self.attn_norm(x)
+        x = self.attn(x)
+        x = x + h
+        h = x
+        x = self.mlp_norm(x)
+        x = self.mlp(x)
+        x = x + h
         return x
 
 
 class Encoder(nn.Module):
-    def __init__(self, embed_dim, depth, num_heads, mlp_ratio=4.0, dropout=0.35, attention_dropout=0.):
+    def __init__(self, embed_dim, depth, num_heads, mlp_ratio=4.0, dropout=0.35, attention_dropout=0., qkv_bias=False, head_dim=None):
         super().__init__()
         self.layers = nn.ModuleList([
-            EncoderLayer(embed_dim, num_heads, mlp_ratio, dropout, attention_dropout)
+            EncoderLayer(embed_dim, num_heads, mlp_ratio, dropout, attention_dropout, qkv_bias, head_dim)
             for _ in range(depth)
         ])
         self.norm = nn.LayerNorm(embed_dim)
@@ -121,4 +132,6 @@ class VisionTransformer(nn.Module):
     def forward(self, x):
         x = self.patch_embed(x)
         x = self.encoder(x)
-        return self.classifier(x[:, 0])
+        logits = self.classifier(x[:, 0])
+        return torch.softmax(logits, dim=1).argmax(dim=1)
+
