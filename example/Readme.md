@@ -1,3 +1,3 @@
 | 34 bp synthetic target and target context sequence | RRBS | DNase | label |
 |:-------|:----:|-------:|-------:|
-| CTTCTTTAGGGCTGTCTGAGCCTCCACAGAGCCG |  | C | |
+| CTTCTTTAGGGCTGTCTGAGCCTCCACAGAGCCG | NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN | C | |
