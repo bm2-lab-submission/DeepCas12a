@@ -19,10 +19,37 @@ cd Cas12a-CViT
 pip install numpy pandas torch scikit-learn scipy
 ```
 ## Usage
-1. Digitalize sgRNA using the following sgRNA Coding Schema. Epigenetics features can be found in ENCODE.
-2. Load models from model directories (untar them first!) in trained_models.
-3. Perform prediction.
-## File Descriptions
+Quick start with three simple steps:
+
+### Step 1: Encode
+Load and encode your sequences from a tab-separated file (see `example/example_sequences.txt` for format).
+```python
+import torch
+from DeepCas12a import Episgt
+
+data = Episgt('sequences path', num_epi_features=2, with_y=True)
+X, y = data.get_dataset()
+X = torch.tensor(X).unsqueeze(1)
+```
+
+### Step 2: Load Model
+Load a pre-trained model from trained checkpoints.
+```python
+from DeepCas12a import VisionTransformer
+
+model = VisionTransformer()
+model.load_state_dict(torch.load('model path'))
+model.eval()
+```
+
+### Step 3: Perform Prediction
+Get predictions (0 or 1) for targeting efficiency.
+```python
+with torch.no_grad():
+    predictions = model(X)
+```
+
+For a complete example, see `run_example.py`.
 ## License
 This project is licensed under the Apache License. See LICENSE for details.
 ## Contact
