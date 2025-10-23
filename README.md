@@ -27,7 +27,7 @@ Load and encode your sequences from a tab-separated file (see `example/example_s
 import torch
 from DeepCas12a import Episgt
 
-data = Episgt('sequences path', num_epi_features=2, with_y=True)
+data = Episgt('data path', num_epi_features=2, with_y=True)
 X, y = data.get_dataset()
 X = torch.tensor(X).unsqueeze(1)
 ```
