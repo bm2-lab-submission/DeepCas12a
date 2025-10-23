@@ -18,6 +18,10 @@ cd Cas12a-CViT
 # Ensure you have Python 3.8+ installed, then run:
 pip install numpy pandas torch scikit-learn scipy
 ```
+## Usage
+1. Digitalize sgRNA using the following sgRNA Coding Schema. Epigenetics features can be found in ENCODE.
+2. Load models from model directories (untar them first!) in trained_models.
+3. Perform prediction.
 ## File Descriptions
 ## License
 This project is licensed under the Apache License. See LICENSE for details.
